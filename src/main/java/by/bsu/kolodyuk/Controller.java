@@ -1,14 +1,12 @@
 package by.bsu.kolodyuk;
 
-import by.bsu.kolodyuk.model.Node;
+import by.bsu.kolodyuk.tree.*;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.VBox;
-import org.jkee.gtree.Tree;
-import org.jkee.gtree.builder.KeyTreeBuilder;
 
 import java.net.URL;
 import java.util.*;
@@ -18,102 +16,70 @@ import java.util.regex.Pattern;
 
 public class Controller implements Initializable {
 
-    private KeyTreeBuilder.Funnel<String, Node> funnel = new KeyTreeBuilder.Funnel<String, Node>() {
-        @Override
-        public String getKey(Node node) {
-            return node.getOption();
-        }
-
-        @Override
-        public String getParentKey(Node node) {
-            return node.getQuestion();
-        }
-    };
-
-    private KeyTreeBuilder<String, Node> builder = new KeyTreeBuilder<>(funnel);
-    private Tree<Node> tree;
+    private Tree tree = new Tree();
 
     private String REGEX = "\\(([\\w\\s]+) = ([\\w\\s]+)\\)";
 
     @FXML
     private VBox vBox;
 
-    private Node currentNode;
-
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         Pattern pattern = Pattern.compile(REGEX);
         Scanner scanner = new Scanner(this.getClass().getClassLoader().getResourceAsStream("rules.txt"));
-        List<Node> nodes = new ArrayList<>();
-        nodes.add(new Node(null, "Target"));
 
+        Node prev = null;
         while(scanner.hasNextLine()) {
-            List<String> groups = new ArrayList<>();
             Matcher matcher = pattern.matcher(scanner.nextLine());
             while (matcher.find()) {
-                groups.add(matcher.group(1));
-                groups.add(matcher.group(2));
-            }
-            for (int i = 0; i < groups.size() - 1; i++) {
-                nodes.add(new Node(groups.get(i), groups.get(i + 1)));
+                Node key = new Node(matcher.group(1));
+                Node value = new Node(matcher.group(2));
+                Optional<Node> foundKey = tree.findNodeByMessage(key.getMessage());
+                if(foundKey.isPresent()) {
+                    Optional<Node> foundValue = tree.findNodeByMessage(value.getMessage());
+                    if(!foundValue.isPresent()) {
+                        foundKey.get().addChild(value);
+                        tree.add(value);
+                    } else {
+                        value = foundValue.get();
+                    }
+                } else {
+                    key.addChild(value);
+                    tree.add(key);
+                    tree.add(value);
+                    if(prev != null) {
+                        prev.addChild(key);
+                    }
+                }
+                prev = value;
             }
         }
-        tree = builder.buildTree(nodes);
-        currentNode = tree.getValue();
-        showCurrentNode();
+        showAll();
+    }
+
+    public void showNode(Node node) {
+        while(node.getChildren().size() == 1) {
+            node = node.getChildren().get(0);
+        }
+
+        vBox.getChildren().clear();
+        vBox.getChildren().add(new Label(node.getMessage() + (node.isLeaf() ? " !" : " ?")));
+        node.getChildren().forEach(n -> vBox.getChildren().add(createButton(n)));
+        if(node.isLeaf()) {
+            vBox.getChildren().add(createBackButton());
+        }
     }
 
     public void showAll() {
-        List<Node> leaves = new ArrayList<>();
-        List<Node> opt = new ArrayList<>();
-        tree.treeIterator().forEachRemaining(tree -> {
-            if(tree.getChildren() == null || tree.getChildren().isEmpty()) {
-                leaves.add(tree.getValue());
-            } else {
-                opt.add(tree.getValue());
-            }
-        });
-
-        opt.forEach(n -> vBox.getChildren().add(createMenuButton(n)));
-    }
-
-    public void showCurrentNode() {
         vBox.getChildren().clear();
-        List<Node> options = tree.find(n -> currentNode.getOption().equals(n.getQuestion()));
-        if(options.size() == 1) {
-            Node next = tree.findOne(n -> options.get(0).getOption().equals(n.getQuestion()));
-            if(next == null) { //is leaf
-                vBox.getChildren().add(new Label(options.get(0).getOption()));
-                vBox.getChildren().add(createBackButton());
-            } else {
-                vBox.getChildren().add(new Label(next.getOption() + '?'));
-                tree.find(n -> next.getOption().equals(n.getQuestion())).forEach(n -> vBox.getChildren().add(createButton(n.getOption())));
-            }
-        } else {
-            vBox.getChildren().add(new Label(currentNode.getOption() + '?'));
-            options.forEach(n -> vBox.getChildren().add(createButton(n.getOption())));
-        }
+        tree.findAllQuestions().forEach(n -> vBox.getChildren().add(createButton(n)));
     }
 
-    public Button createButton(String option) {
-        Button button = new Button(option);
+    public Button createButton(Node node) {
+        Button button = new Button(node.getMessage());
         button.setMinSize(200, 30);
         button.setPadding(new Insets(5, 5, 5, 5));
-        button.setOnAction(e -> {
-            currentNode = tree.findOne(n -> option.equals(n.getQuestion()));
-            showCurrentNode();
-        });
-        return button;
-    }
-
-    public Button createMenuButton(Node node) {
-        Button button = new Button(node.getOption());
-        button.setMinSize(200, 30);
-        button.setPadding(new Insets(5, 5, 5, 5));
-        button.setOnAction(e -> {
-            currentNode = tree.findOne(n -> node.getOption().equals(n.getQuestion()));
-            showCurrentNode();
-        });
+        button.setOnAction(i -> showNode(node));
         return button;
     }
 
@@ -122,7 +88,6 @@ public class Controller implements Initializable {
         button.setMinSize(200, 30);
         button.setPadding(new Insets(5, 5, 5, 5));
         button.setOnAction(i -> showAll());
-        currentNode = tree.getValue();
         return button;
     }
 }

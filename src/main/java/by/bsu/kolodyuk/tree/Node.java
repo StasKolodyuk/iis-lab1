@@ -6,23 +6,17 @@ import java.util.List;
 
 public class Node
 {
-    private Node parent;
     private String message;
     private List<Node> children;
+
+    public Node(String message) {
+        this.message = message;
+        this.children = new ArrayList<>();
+    }
 
     public Node()
     {
         this.children = new ArrayList<>();
-    }
-
-    public Node getParent()
-    {
-        return parent;
-    }
-
-    public void setParent(Node parent)
-    {
-        this.parent = parent;
     }
 
     public String getMessage()
@@ -53,5 +47,10 @@ public class Node
     public void addChild(Node node)
     {
         children.add(node);
+    }
+
+    @Override
+    public String toString() {
+        return message + " " + children.size();
     }
 }
